@@ -1,22 +1,33 @@
 package com.zyq.scfunc;
 
-import cn.hutool.core.io.FileUtil;
+import com.taobao.arthas.compiler.DynamicCompiler;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.maven.shared.invoker.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.support.BeanDefinitionBuilder;
+import org.springframework.beans.factory.support.BeanDefinitionRegistry;
+import org.springframework.beans.factory.support.DefaultListableBeanFactory;
+import org.springframework.beans.factory.support.RootBeanDefinition;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.web.servlet.ServletComponentScan;
-
-import java.io.*;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
 import org.springframework.context.ApplicationContext;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.annotation.ClassPathBeanDefinitionScanner;
+import org.springframework.web.context.support.GenericWebApplicationContext;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
+
+import java.io.File;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+
+import java.lang.reflect.Proxy;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Properties;
 
 @SpringBootApplication
 @Slf4j
@@ -39,6 +50,15 @@ public class ScfuncApplication {
             "    @TableId\n" +
             "    private Integer id;\n" +
             "    private String name;\n" +
+            "    public Foo() {this.id = 1;this.name=\"1231\";}\n" +
+            "    public void setName1(String name) { this.name = name; }\n" +
+            "    public String getName1() { System.out.println(\"print--->\"+this.name); return this.name; }\n" +
+            "@Override\n" +
+            "public String toString() {\n" +
+            "    return \"Foo{\" +\n" +
+            "\t    \"name='\" + name + '\\'' +  \n" +
+            "\t    '}';\n" +
+            "}"+
             "}";
 
     static String javaMapper = "package com.zyq.scfunc.mapper;\n" +
@@ -58,8 +78,9 @@ public class ScfuncApplication {
             "public interface FooService  extends IService<Foo>{\n" +
 
             "}";
-    static String serviceImpStr = "package com.zyq.scfunc.service;\n" +
+    static String serviceImpStr = "package com.zyq.scfunc.service.impl;\n" +
             "\n" +
+            "import com.zyq.scfunc.service.FooService;\n" +
             "import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;\n" +
             "import com.zyq.scfunc.mapper.FooMapper;\n" +
             "import com.zyq.scfunc.pojo.Foo;\n" +
@@ -71,68 +92,190 @@ public class ScfuncApplication {
             "public class FooServiceImp extends ServiceImpl<FooMapper, Foo> implements FooService {\n" +
             "\n" +
             "}\n";
+    static String controllerStr = "package com.zyq.scfunc.contrller;\n" +
+            "\n" +
+            "import com.zyq.scfunc.service.FooService;\n" +
+            "import lombok.AllArgsConstructor;\n" +
+            "import org.springframework.web.bind.annotation.GetMapping;\n" +
+            "import org.springframework.web.bind.annotation.RequestMapping;\n" +
+            "import org.springframework.web.bind.annotation.RestController;\n" +
+            "\n" +
+            "\n" +
+            "\n" +
+            "@RestController\n" +
+            "@AllArgsConstructor\n" +
+            "@RequestMapping(\"/foo\")\n" +
+            "public class FooController {\n" +
+            "\n" +
+            "    private final FooService fooService;\n" +
+            "\n" +
+            "    @GetMapping(\"/send\")\n" +
+            "    public String sendSmsCode() {\n" +
+            "        return \"OK\";\n" +
+            "    }\n" +
+            "\n" +
+            "}";
 
     public static void main(String[] args) {
         SpringApplication.run(ScfuncApplication.class, args);
-        System.out.println("打印 java.class.path-->" + System.getProperty("java.class.path"));
+//        System.out.println("打印 java.class.path-->" + System.getProperty("java.class.path"));
 
-        /**
-         * 以下是打印jar包里面的内容
-         */
-//        Resource[] resources = new PathMatchingResourcePatternResolver().
-//                getResources(ResourceUtils.CLASSPATH_URL_PREFIX + "BOOT-INF/lib/*.jar");
-//        for(Resource resource : resources) {
-//            System.out.println("getFilename-->" + resource.getFilename());
-//            System.out.println("getURI-->" + resource.getURI());
-//            System.out.println("getURL-->" + resource.getURL());
-//        }
+        InvocationRequest request = new DefaultInvocationRequest();
+//        request.setPomFile(new File("/Users/Excel/work/java/scfunc/pom.xml"));
+        request.setBaseDirectory(new File("/Users/Excel/Documents/apc"));
+//        request.setGoals(Arrays.asList("archetype:generate", "-DgroupId=tech.yiren", "-DartifactId=app1", "-Dversion=4.1.0", "-Dpackage=tech.yiren.ystart.app1", "-DarchetypeGroupId=tech.yiren.archetype", "-DarchetypeArtifactId=ystart-gen", "-DarchetypeVersion=4.1.0", "-DarchetypeCatalog=local"));
+
+//
+//        request.setGoals(Arrays.asList("package"));
+//        request.setGoals(Arrays.asList("package"));
+        request.setGoals(Collections.singletonList("archetype:generate"));
+        Properties properties = new Properties();
+        properties.setProperty("groupId", "tech.yiren");
+        properties.setProperty("artifactId", "app2");
+        properties.setProperty("package", "tech.yiren.ystart.app2");
+        properties.setProperty("archetypeVersion", "4.1.0");
+        properties.setProperty("archetypeGroupId", "tech.yiren.archetype");
+        properties.setProperty("archetypeArtifactId", "ystart-gen");
+        properties.setProperty("archetypeCatalog", "local");
+        request.setProperties(properties);
+        request.setBatchMode(true); // 默认使用true
+        Invoker invoker = new DefaultInvoker();
+        try {
+            invoker.setMavenHome(new File("/Users/Excel/Documents/apache-maven-3.6.3"));
+            invoker.execute(request);
+        } catch (MavenInvocationException e) {
+            e.printStackTrace();
+        }
+
+        String feild = "cheng_li_ri_qi";
+        String objType = "String";
+        String a = GenCodeUtil.genSetAndGet(feild,objType);
+        System.out.println(a);
 
         try {
-            List<JavaSrc> javaSrcs = new ArrayList<>();
+            DynamicCompiler dynamicCompiler = new DynamicCompiler(Thread.currentThread().getContextClassLoader());
+            dynamicCompiler.addSource("Foo", javaEntity);
+            dynamicCompiler.addSource("FooMapper", javaMapper);
+            dynamicCompiler.addSource("FooService", serviceStr);
+            dynamicCompiler.addSource("FooServiceImp", serviceImpStr);
+            dynamicCompiler.addSource("FooController", controllerStr);
 
-            JavaSrc javaSrc1 = new JavaSrc("Foo.java", javaEntity);
-            javaSrcs.add(javaSrc1);
+            Map<String, Class<?>> compiled = dynamicCompiler.build();
 
-            JavaSrc javaSrc22 = new JavaSrc("FooMapper.java", javaMapper);
-            javaSrcs.add(javaSrc22);
+            ClassLoader classLoader = dynamicCompiler.getClassLoader();
+//            Class<?> FooClazz  =  classLoader.loadClass("com.zyq.scfunc.pojo.Foo");
+//
+//            Field[] fields = FooClazz.getFields();
+//            System.out.println("----fields----");
+//            System.out.println(fields);
+//            System.out.println("----fields  length----");
+//            System.out.println(fields.length);
+//            Field[] fields1 = FooClazz.getDeclaredFields();
+//            for (int i = 0; i < fields1.length; i++) {
+//                Field method = fields1[i];
+//                System.out.println("Field-->" + method.getName());
+//            }
+//
+//            Method[] methods = FooClazz.getMethods();
+//            for (int i = 0; i < methods.length; i++) {
+//                Method method = methods[i];
+//                System.out.println("method-->" + method.getName());
+//            }
+//
+//            Object obj = FooClazz.newInstance();
+//
+//            Method setId = FooClazz.getMethod("setName1", String.class);
+//
+////            setId.invoke(obj, "123");
+//
+//            System.out.println(obj);
 
-            JavaSrc javaSrcService = new JavaSrc("FooService.java", serviceStr);
-            javaSrcs.add(javaSrcService);
 
 
-            JavaSrc javaSrcServiceImp = new JavaSrc("FooServiceImp.java", serviceImpStr);
-            javaSrcs.add(javaSrcServiceImp);
+            ConfigurableApplicationContext applicationContext =
+                    (ConfigurableApplicationContext)SpringContextHolder.getApplicationContext();
 
-            URL classPathUrl = new URL("file://" + System.getProperty("java.class.path"));
+            BeanDefinitionRegistry beanFactory = (BeanDefinitionRegistry)applicationContext.getBeanFactory();
 
-            // 手动设置 classpath
-            DynamicLoader.classpaths = new URL[]{classPathUrl};
+//            Class<?> FooServiceImp  =  classLoader.loadClass("com.zyq.scfunc.service.impl.FooServiceImp");
 
-            Map<String, byte[]> bytecode = DynamicLoader.compile(javaSrcs);
-
-            DynamicLoader.MemoryClassLoader classLoader = new DynamicLoader.MemoryClassLoader(bytecode);
-
-            Class clazzEntity = classLoader.loadClass("com.zyq.scfunc.pojo.Foo");
-            Class clazzMapper = classLoader.loadClass("com.zyq.scfunc.mapper.FooMapper");
-            Class clazzService = classLoader.loadClass("com.zyq.scfunc.service.FooService");
-            Class clazzServiceImp = classLoader.loadClass("com.zyq.scfunc.service.FooServiceImp");
+            Class<?> FooEntity  =  compiled.get("com.zyq.scfunc.pojo.Foo");
+            Class<?> FooMapper  =  compiled.get("com.zyq.scfunc.mapper.FooMapper");
+            Class<?> FooService  =  compiled.get("com.zyq.scfunc.service.FooService");
+            Class<?> FooServiceImp  =  compiled.get("com.zyq.scfunc.service.impl.FooServiceImp");
+            Class<?> FooController  =  compiled.get("com.zyq.scfunc.contrller.FooController");
 
 
-            //从ApplicationContext中取出已创建好的的对象
-            //不可直接反射创建serviceimpi对象，因为反射创建出来的对象无法实例化dao接口
-            ApplicationContext applicationContext = SpringBootBeanUtil.getApplicationContext();
-            //反射创建serviceimpi实体对象，和实体类
-            Object entity = clazzEntity.newInstance();
-            Class<?> ServiceImplType = Class.forName("com.zyq.scfunc.service.FooServiceImp");
-            // 这个count是mybatis-plus service里面内置的方法
-            Method method = ServiceImplType.getMethod("count");
-            //在ApplicationContext中根据class取出已实例化的bean
+//            Class<?> FooEntity  = classLoader.loadClass("com.zyq.scfunc.pojo.Foo");
 
-            Object o = method.invoke(applicationContext.getBean(ServiceImplType));
-            System.out.println("\n执行结果 --> result： " + o); // 数据库有3条数据，理论上输出3
+//            Class<?> entityType = Class.forName("com.zyq.scfunc.pojo.Foo");
+
+
+            Object obj = FooEntity.newInstance();
+//
+            Method setId = FooEntity.getMethod("setName1", String.class);
+            Method getName1 = FooEntity.getMethod("getName1");
+
+            setId.invoke(obj, "123");
+            getName1.invoke(obj);
+
+            System.out.println(obj);
+
+
+
+//            BeanDefinitionBuilder beanDefinitionBuilderEntity = BeanDefinitionBuilder.genericBeanDefinition(FooEntity);
+            BeanDefinitionBuilder beanDefinitionBuilderMap = BeanDefinitionBuilder.genericBeanDefinition(FooMapper);
+            BeanDefinitionBuilder beanDefinitionBuilderService = BeanDefinitionBuilder.genericBeanDefinition(FooService);
+            BeanDefinitionBuilder beanDefinitionBuilderServiceImp = BeanDefinitionBuilder.genericBeanDefinition(FooServiceImp);
+            BeanDefinitionBuilder beanDefinitionBuilderController = BeanDefinitionBuilder.genericBeanDefinition(FooController);
+//
+//
+//            // 设置构造器参数
+////            beanDefinitionBuilderServiceImp.addConstructorArgValue("com.zyq.scfunc.service.impl.FooServiceImp");
+//
+//            beanFactory.registerBeanDefinition("com.zyq.scfunc.pojo.Foo", beanDefinitionBuilderEntity.getBeanDefinition());
+//            beanFactory.registerBeanDefinition("com.zyq.scfunc.mapper.FooMapper", beanDefinitionBuilderMap.getBeanDefinition());
+////            beanFactory.registerBeanDefinition("com.zyq.scfunc.service.FooService", beanDefinitionBuilderService.getBeanDefinition());
+//            beanFactory.registerBeanDefinition("com.zyq.scfunc.service.impl.FooServiceImp", beanDefinitionBuilderServiceImp.getBeanDefinition());
+////            beanFactory.registerBeanDefinition("com.zyq.scfunc.service.impl.FooServiceImp", beanDefinitionBuilder.getBeanDefinition());
+//            beanFactory.registerBeanDefinition("com.zyq.scfunc.contrller.FooController", beanDefinitionBuilderController.getBeanDefinition());
+//
+//
+
+            // 这里通过builder直接生成了mycontrooler的definition，然后注册进去
+            RequestMappingHandlerMapping requestMappingHandlerMapping=(RequestMappingHandlerMapping)applicationContext.getBean("requestMappingHandlerMapping");
+            DefaultListableBeanFactory defaultListableBeanFactory = (DefaultListableBeanFactory) applicationContext.getAutowireCapableBeanFactory();
+            BeanDefinitionBuilder beanDefinitionBuilder = BeanDefinitionBuilder.genericBeanDefinition(FooController);
+//            defaultListableBeanFactory.registerBeanDefinition("com.zyq.scfunc.mapper.FooMapper", beanDefinitionBuilderMap.getBeanDefinition());
+            defaultListableBeanFactory.registerBeanDefinition("FooServiceImp", beanDefinitionBuilderServiceImp.getBeanDefinition());
+            defaultListableBeanFactory.registerBeanDefinition("FooController", beanDefinitionBuilder.getBeanDefinition());
+            Method method=requestMappingHandlerMapping.getClass().getSuperclass().getSuperclass().getDeclaredMethod("detectHandlerMethods",Object.class);
+            method.setAccessible(true);
+            method.invoke(requestMappingHandlerMapping,"FooController");
+            // 注册Bean
+            // 设置构造器参数
+//            beanDefinitionBuilder.addConstructorArgValue("FooServiceImp");
+
+//            Class<?> FooMapper  =  classLoader.loadClass("com.zyq.scfunc.mapper.FooMapper");
+//            Class<?> FooService  =  classLoader.loadClass("com.zyq.scfunc.service.FooService");
+//            Class<?> FooServiceImp  =  classLoader.loadClass("com.zyq.scfunc.service.impl.FooServiceImp");
+//            Class<?> FooController  =  classLoader.loadClass("com.zyq.scfunc.contrller.FooController");
+
+//            String tName = "com.zyq.scfunc.service.impl.FooServiceImp";
+//            Class cls = SpringContextUtil.getBean(tName).getClass();
+//            Method m = cls.getDeclaredMethod("count");
+//            Object o = m.invoke(SpringContextUtil.getBean(tName));
+//            Class<?> serviceImplType1 = compiled.get("com.zyq.scfunc.service.impl.FooServiceImp");
+//            Method method1 = serviceImplType1.getMethod("count");
+//            ApplicationContext applicationContext = SpringBootBeanUtil.getApplicationContext();
+//            Class<?> ServiceImplType = Class.forName("com.zyq.scfunc.service.impl.FooServiceImp");
+//            // 这个count是mybatis-plus service里面内置的方法
+//            Method method = FooServiceImp.getMethod("count");
+//            //在ApplicationContext中根据class取出已实例化的bean
+//            Object o = method.invoke(applicationContext.getBean("com.zyq.scfunc.service.impl.FooServiceImp"));
+//            System.out.println(o);
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
-
 }

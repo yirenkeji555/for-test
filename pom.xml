@@ -39,12 +39,12 @@
 			<artifactId>spring-cloud-starter-function-web</artifactId>
 			<!--<version>1.0.1.RELEASE</version>-->
 		</dependency>
+		<!-- https://mvnrepository.com/artifact/org.projectlombok/lombok -->
 		<dependency>
 			<groupId>org.projectlombok</groupId>
-			<artifactId>lombok-1.18.20.jar</artifactId>
+			<artifactId>lombok</artifactId>
 			<version>1.18.20</version>
-			<scope>system</scope>
-			<systemPath>${project.basedir}/lib/lombok-1.18.20.jar</systemPath>
+<!--			<scope>provided</scope>-->
 		</dependency>
 
 		<dependency>
@@ -75,6 +75,18 @@
 			<version>2.0.3.RELEASE</version>
 		</dependency>
 
+		<dependency>
+			<groupId>com.taobao.arthas</groupId>
+			<artifactId>arthas-memorycompiler</artifactId>
+			<version>3.5.5</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.maven.shared</groupId>
+			<artifactId>maven-invoker</artifactId>
+			<version>3.0.1</version>
+		</dependency>
+
 	</dependencies>
 
 	<dependencyManagement>
@@ -91,6 +103,22 @@
 
 	<build>
 		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-jar-plugin</artifactId>
+				<configuration>
+					<archive>
+						<manifest>
+							<addClasspath>true</addClasspath>
+							<classpathPrefix>libs/</classpathPrefix>
+							<mainClass>
+								com.zyq.scfunc.ScfuncApplication
+							</mainClass>
+						</manifest>
+					</archive>
+				</configuration>
+			</plugin>
+
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
