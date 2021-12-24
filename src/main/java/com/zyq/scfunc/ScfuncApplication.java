@@ -118,6 +118,7 @@ public class ScfuncApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(ScfuncApplication.class, args);
+        System.out.println("打印 java.class.path-->" + System.getenv("M2_HOME"));
 //        System.out.println("打印 java.class.path-->" + System.getProperty("java.class.path"));
 
         InvocationRequest request = new DefaultInvocationRequest();
